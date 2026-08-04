@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strconv"
@@ -483,15 +484,51 @@ func toInt64(v any) (int64, error) {
 		return int64(i), nil
 	case int64:
 		return i, nil
+	case uint8:
+		return int64(i), nil
+	case uint16:
+		return int64(i), nil
+	case uint32:
+		return int64(i), nil
+	case uint:
+		return uintToInt64(uint64(i))
+	case uint64:
+		return uintToInt64(i)
 	}
 
 	// Force it to a string and try to convert.
-	f, err := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
+	s := fmt.Sprintf("%v", v)
+
+	// Try an integer first so that values beyond float64's exact range (2^53)
+	// don't lose precision in the fallback below.
+	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return i, nil
+	}
+
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		return 0, err
 	}
 
+	// int64(f) is undefined for out-of-range values and yields a different
+	// number on each CPU architecture. The upper bound is 2^63 and not
+	// math.MaxInt64, which rounds up to 2^63 as a float64, letting overflows
+	// through.
+	if math.IsNaN(f) || f >= 1<<63 || f < math.MinInt64 {
+		return 0, fmt.Errorf("value %v overflows int64", v)
+	}
+
 	return int64(f), nil
+}
+
+// uintToInt64 converts an unsigned integer to int64, erroring on overflow
+// instead of wrapping around.
+func uintToInt64(v uint64) (int64, error) {
+	if v > math.MaxInt64 {
+		return 0, fmt.Errorf("value %d overflows int64", v)
+	}
+
+	return int64(v), nil
 }
 
 // toInt64 takes a `v any` value and if it is a float type,
