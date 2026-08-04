@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -2107,4 +2108,45 @@ func TestGetNilPointer(t *testing.T) {
 	assert.Nil(gotSlice)
 	_, ok = gotSlice.(*[]string)
 	assert.True(ok, "expected type *[]string, got %T", gotSlice)
+}
+
+// TesConvertInt64 tests various int64 conversion/overflow scenarios.
+func TesConvertInt64(t *testing.T) {
+	assert := assert.New(t)
+	k := koanf.New(delim)
+
+	assert.Nil(k.Load(confmap.Provider(map[string]any{
+		// Good values.
+		"int64":     int64(math.MaxInt64),
+		"uint64":    uint64(math.MaxInt64),
+		"strmaxint": "9223372036854775807",
+		"strminint": "-9223372036854775808",
+		"str2p53":   "9007199254740993",
+		"float":     1.9,
+		"minfloat":  float64(math.MinInt64),
+		"strfloat":  "3.7",
+
+		// Overflows.
+		"bigfloat":  float64(math.MaxInt64),
+		"hugefloat": 1e300,
+		"neghuge":   -1e300,
+		"inf":       math.Inf(1),
+		"neginf":    math.Inf(-1),
+		"nan":       math.NaN(),
+		"biguint64": uint64(math.MaxInt64) + 1,
+	}, delim), nil))
+
+	assert.Equal(int64(math.MaxInt64), k.Int64("int64"))
+	assert.Equal(int64(math.MaxInt64), k.Int64("uint64"))
+	assert.Equal(int64(math.MaxInt64), k.Int64("strmaxint"))
+	assert.Equal(int64(math.MinInt64), k.Int64("strminint"))
+	assert.Equal(int64(9007199254740993), k.Int64("str2p53"))
+	assert.Equal(int64(1), k.Int64("float"))
+	assert.Equal(int64(math.MinInt64), k.Int64("minfloat"))
+	assert.Equal(int64(3), k.Int64("strfloat"))
+
+	// Out of range must return 0 and not a wrapped value.
+	for _, key := range []string{"bigfloat", "hugefloat", "neghuge", "inf", "neginf", "nan", "biguint64"} {
+		assert.Equal(int64(0), k.Int64(key), "Int64(%q) must be 0", key)
+	}
 }
