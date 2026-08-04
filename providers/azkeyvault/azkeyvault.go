@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/knadh/koanf/maps"
@@ -59,15 +60,15 @@ func (kv *AzureKeyVault) Read() (map[string]any, error) {
 		}
 
 		for _, secret := range page.Value {
+			// Skip disabled secrets (which will throw errors if fetched).
+			if secret.Attributes != nil && secret.Attributes.Enabled != nil && !*secret.Attributes.Enabled {
+				continue
+			}
+
 			sName := secret.ID.Name()
 			SValue, err := kv.kvclient.GetSecret(ctx, sName, "", nil)
 
 			if err != nil {
-				var respErr *azcore.ResponseError
-				// Unable to properly identify disabled secret, but a disabled secret will return 403.
-				if errors.As(err, &respErr) && respErr.StatusCode == 403 {
-					continue // skip disabled secrets
-				}
 				return nil, fmt.Errorf("failed to get the secret value for %s, Error: %w", sName, err)
 			}
 
