@@ -164,9 +164,8 @@ func TestRead(t *testing.T) {
 	})
 }
 
-func TestReadBareKey(t *testing.T) {
-	// An environment entry without a '=' (e.g. a variable name with no
-	// value) must be skipped, not cause an index-out-of-range panic.
+func TestInvalidKey(t *testing.T) {
+	// An environment entry without a '=' should be silently skipped.
 	env := Provider(".", Opt{
 		EnvironFunc: func() []string {
 			return []string{"TEST_GOOD=value", "BAREKEYWITHOUTEQUALS", "TEST_OTHER=other"}
