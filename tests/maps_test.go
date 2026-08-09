@@ -132,6 +132,46 @@ func TestUnflatten(t *testing.T) {
 	assert.Equal(t, um, testMap2)
 }
 
+func TestUnflattenNestedOrder(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		in   map[string]any
+		want map[string]any
+	}{
+		{
+			"scalar and nested",
+			map[string]any{"parent": 1, "parent.child": 2},
+			map[string]any{"parent": map[string]any{"child": 2}},
+		},
+		{
+			"prefix skips one level",
+			map[string]any{"parent": 1, "parent.child.key": 2},
+			map[string]any{"parent": map[string]any{"child": map[string]any{"key": 2}}},
+		},
+		{
+			"three keys in one path",
+			map[string]any{"parent": 1, "parent.child": 2, "parent.child.key": 3},
+			map[string]any{"parent": map[string]any{"child": map[string]any{"key": 3}}},
+		},
+		{
+			"colliding key already has a map",
+			map[string]any{"parent": map[string]any{"other": 1}, "parent.child": 2},
+			map[string]any{"parent": map[string]any{"other": 1, "child": 2}},
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			for range 100 {
+				assert.Equal(t, c.want, maps.Unflatten(c.in, delim))
+			}
+		})
+	}
+}
+
+func TestUnflattenNoDelim(t *testing.T) {
+	in := map[string]any{"parent": 1, "parent.child": 2}
+	assert.Equal(t, in, maps.Unflatten(in, ""))
+}
+
 func TestIntfaceKeysToStrings(t *testing.T) {
 	m := map[string]any{
 		"list": []any{

@@ -6,6 +6,7 @@ package maps
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mitchellh/copystructure"
@@ -65,14 +66,22 @@ func flatten(m map[string]any, keys []string, delim string, out map[string]any, 
 // and returns a nested map where the keys are split into hierarchies by the given
 // delimiter. For instance, `parent.child.key: 1` to `{parent: {child: {key: 1}}}`
 //
+// Keys are sorted by length to make merge-order deterministic so that nested keys
+// don't end up overwriting their parent keys. eg: `parent.child` -> `parent`.
+//
 // It's important to note that all nested maps should be
 // map[string]any and not map[any]any.
 // Use IntfaceKeysToStrings() to convert if necessary.
 func Unflatten(m map[string]any, delim string) map[string]any {
 	out := make(map[string]any)
 
-	// Iterate through the flat conf map.
-	for k, v := range m {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+
+	for _, k := range ks {
 		var (
 			keys []string
 			next = out
@@ -87,19 +96,17 @@ func Unflatten(m map[string]any, delim string) map[string]any {
 		// Iterate through key parts, for eg:, parent.child.key
 		// will be ["parent", "child", "key"]
 		for _, k := range keys[:len(keys)-1] {
-			sub, ok := next[k]
+			// Create the key if it doesn't exist.
+			sub, ok := next[k].(map[string]any)
 			if !ok {
-				// If the key does not exist in the map, create it.
 				sub = make(map[string]any)
 				next[k] = sub
 			}
-			if n, ok := sub.(map[string]any); ok {
-				next = n
-			}
+			next = sub
 		}
 
 		// Assign the value.
-		next[keys[len(keys)-1]] = v
+		next[keys[len(keys)-1]] = m[k]
 	}
 	return out
 }
