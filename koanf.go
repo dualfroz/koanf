@@ -416,13 +416,16 @@ func (ko *Koanf) MapKeys(path string) []string {
 		return out
 	}
 
-	mp, ok := o.(map[string]any)
-	if !ok {
+	// A value set with Set() or by a Provider such as structs keeps its native
+	// map type, so the keys have to be read through reflection too.
+	rv := reflect.ValueOf(o)
+	if rv.Kind() != reflect.Map || rv.Type().Key().Kind() != reflect.String {
 		return out
 	}
-	out = make([]string, 0, len(mp))
-	for k := range mp {
-		out = append(out, k)
+
+	out = make([]string, 0, rv.Len())
+	for _, k := range rv.MapKeys() {
+		out = append(out, k.String())
 	}
 	sort.Strings(out)
 	return out
